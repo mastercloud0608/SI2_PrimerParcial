@@ -1,0 +1,222 @@
+--   CREATE DATABASE ventas
+
+-- Conéctate a esa base de datos y ejecuta este script.
+
+-- =============================================================
+-- 1) Tabla roles
+--    Maneja los diferentes perfiles (admin, cliente, empleado, etc.)
+-- =============================================================
+CREATE TABLE roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT
+);
+
+-- Inserción en la tabla roles
+INSERT INTO roles (name, description)
+VALUES 
+  ('cliente', 'Cliente del sistema'),
+  ('empleado', 'Empleado del sistema'),
+  ('admin', 'Administrador del sistema');
+
+-- =============================================================
+-- 2) Tabla usuarios
+--    Almacena datos de usuarios y referencia a su rol
+-- =============================================================
+CREATE TABLE usuarios (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(150) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password VARCHAR(128) NOT NULL,
+    first_name VARCHAR(30) NOT NULL,
+    last_name VARCHAR(150) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    is_staff BOOLEAN NOT NULL DEFAULT FALSE,
+    is_superuser BOOLEAN NOT NULL DEFAULT FALSE,
+    last_login TIMESTAMP WITH TIME ZONE NULL,
+    date_joined TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    role_id INTEGER REFERENCES roles(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserción en la tabla usuarios (usuario ejemplo de cada rol)
+INSERT INTO usuarios (username, email, password, first_name, last_name, role_id) 
+VALUES
+  ('juan_cliente', 'juan_cliente@example.com', 'password', 'Juan', 'Pérez', (SELECT id FROM roles WHERE name='cliente')),
+  ('maria_empleado', 'maria_empleado@example.com', 'password', 'María', 'López', (SELECT id FROM roles WHERE name='empleado')),
+  ('admin', 'admin@example.com', 'password', 'Admin', 'User', (SELECT id FROM roles WHERE name='admin'));
+
+-- =============================================================
+-- 3) Tabla productos
+--    Catálogo básico de productos (para ventas, inventario, etc.)
+-- =============================================================
+CREATE TABLE productos (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    price NUMERIC(10,2) NOT NULL,
+    stock INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserción en la tabla productos
+INSERT INTO productos (name, description, price, stock) VALUES
+  ('Laptop', 'Laptop de gama media', 800.00, 10),
+  ('Smartphone', 'Smartphone de última generación', 600.00, 15),
+  ('Tablet', 'Tablet de 10 pulgadas', 300.00, 20);
+
+-- =============================================================
+-- 4) CONTABILIDAD
+--    Ejemplo simplificado de manejo de cuentas y transacciones
+-- =============================================================
+
+-- 4a) Tabla contabilidad_cuentas
+CREATE TABLE contabilidad_cuentas (
+    id SERIAL PRIMARY KEY,
+    nombre_cuenta VARCHAR(255) NOT NULL,
+    tipo_cuenta VARCHAR(50) NOT NULL,          -- Ej: 'Activo', 'Pasivo', 'Patrimonio', etc.
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserción en contabilidad_cuentas
+INSERT INTO contabilidad_cuentas (nombre_cuenta, tipo_cuenta)
+VALUES
+  ('Caja', 'Activo'),
+  ('Ventas', 'Ingreso'),
+  ('Gastos Generales', 'Gasto');
+
+-- 4b) Tabla contabilidad_transacciones
+CREATE TABLE contabilidad_transacciones (
+    id SERIAL PRIMARY KEY,
+    cuenta_id INTEGER NOT NULL REFERENCES contabilidad_cuentas(id),
+    monto NUMERIC(12,2) NOT NULL,
+    descripcion TEXT,
+    fecha_transaccion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserción en contabilidad_transacciones
+INSERT INTO contabilidad_transacciones (cuenta_id, monto, descripcion)
+VALUES (
+  (SELECT id FROM contabilidad_cuentas WHERE nombre_cuenta='Caja'), 
+  1200.00,
+  'Ingreso inicial de caja'
+);
+
+-- =============================================================
+-- 5) CRM
+--    Ejemplo básico de clientes y posibles actividades de seguimiento
+-- =============================================================
+
+-- 5a) Tabla crm_clientes
+CREATE TABLE crm_clientes (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    telefono VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserción en crm_clientes
+INSERT INTO crm_clientes (nombre, email, telefono) 
+VALUES 
+  ('Juan Pérez', 'juan.perez@example.com', '555-1234');
+
+-- 5b) Tabla crm_actividad
+CREATE TABLE crm_actividad (
+    id SERIAL PRIMARY KEY,
+    cliente_id INTEGER REFERENCES crm_clientes(id),
+    descripcion TEXT,
+    fecha_actividad TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserción en crm_actividad
+INSERT INTO crm_actividad (cliente_id, descripcion)
+VALUES
+  (1, 'Llamada de seguimiento para venta de laptop');
+
+-- =============================================================
+-- 6) REPORTES
+--    Almacén simple de reportes generados o programados
+-- =============================================================
+CREATE TABLE reportes (
+    id SERIAL PRIMARY KEY,
+    titulo VARCHAR(255) NOT NULL,
+    descripcion TEXT,
+    tipo_reporte VARCHAR(50),      -- Podrías tener 'PDF', 'Excel', etc.
+    fecha_generado TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    usuario_id INTEGER REFERENCES usuarios(id)
+);
+
+-- Inserción en reportes
+INSERT INTO reportes (titulo, descripcion, tipo_reporte, usuario_id)
+VALUES (
+  'Reporte de Ventas Mensual',
+  'Informe de ventas del mes actual',
+  'PDF',
+  (SELECT id FROM usuarios WHERE username='admin')
+);
+
+-- =============================================================
+-- 7) VENTAS
+--    Estructura para manejo de ventas/órdenes y su detalle
+-- =============================================================
+
+-- 7a) Tabla ventas (orden principal)
+CREATE TABLE ventas (
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER REFERENCES usuarios(id),
+    total NUMERIC(10,2) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'pendiente',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserción en ventas
+INSERT INTO ventas (usuario_id, total, status)
+VALUES (
+  (SELECT id FROM usuarios WHERE username='admin'),
+  800.00,
+  'pagada'
+);
+
+-- 7b) Tabla venta_detalle (items de cada venta)
+CREATE TABLE venta_detalle (
+    id SERIAL PRIMARY KEY,
+    venta_id INTEGER REFERENCES ventas(id),
+    producto_id INTEGER REFERENCES productos(id),
+    cantidad INTEGER NOT NULL,
+    precio NUMERIC(10,2) NOT NULL,       -- precio unitario en el momento de la venta
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserción en venta_detalle
+INSERT INTO venta_detalle (venta_id, producto_id, cantidad, precio)
+VALUES (
+  (SELECT id FROM ventas WHERE usuario_id=(SELECT id FROM usuarios WHERE username='admin') ORDER BY id DESC LIMIT 1),
+  (SELECT id FROM productos WHERE name='Laptop'),
+  1,
+  800.00
+);
+
+-- =============================================================
+-- 8) VOZ
+--    Ejemplo minimalista para registro de comandos de voz
+-- =============================================================
+CREATE TABLE voz_comandos (
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER REFERENCES usuarios(id),
+    comando_recibido TEXT NOT NULL,
+    resultado_accion TEXT,          -- Se puede guardar un log de lo que ejecutó
+    fecha_comando TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserción en voz_comandos
+INSERT INTO voz_comandos (usuario_id, comando_recibido, resultado_accion)
+VALUES (
+  (SELECT id FROM usuarios WHERE username='admin'),
+  'Agregar Laptop al carrito',
+  'Laptop agregada correctamente'
+);
